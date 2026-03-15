@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lazy Gorilya | Streetwear Manufacturing</title>
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;600;900&display=swap" rel="stylesheet">
+    
+    <!-- Scripts -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore-compat.js"></script>
+
+    <style>
+        :root {
+            --neon-red: #ff003c;
+            --neon-glow: 0 0 15px rgba(255, 0, 60, 0.7), 0 0 30px rgba(255, 0, 60, 0.4);
+        }
+
+        body {
+            background-color: #000;
+            color: #fff;
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            overflow-x: hidden;
+        }
+
+        .font-archivo { font-family: 'Archivo Black', sans-serif; }
+        
+        .neon-text {
+            color: var(--neon-red);
+            text-shadow: var(--neon-glow);
+        }
+
+        .neon-border {
+            border-color: var(--neon-red);
+            box-shadow: var(--neon-glow);
+        }
+
+        .neon-bg {
+            background-color: var(--neon-red);
+            box-shadow: var(--neon-glow);
+        }
+
+        .factory-grid {
+            background-image: radial-gradient(circle at 1px 1px, #1a1a1a 1px, transparent 0);
+            background-size: 30px 30px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar { width: 5px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #000; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #ff003c; border-radius: 10px; }
+        
+        @keyframes scanline {
+            0% { transform: translateY(-100%); }
+            100% { transform: translateY(100%); }
+        }
+        .scanline {
+            position: absolute;
+            width: 100%;
+            height: 2px;
+            background: rgba(255, 0, 60, 0.1);
+            animation: scanline 8s linear infinite;
+            pointer-events: none;
+        }
+
+        .product-image-container::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 40%);
+        }
+
+        .glass-panel {
+            background: rgba(10, 10, 10, 0.8);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+    </style>
+</head>
+<body class="custom-scrollbar factory-grid">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // --- Firebase Init ---
+        let auth, db;
+        const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : 'lazy-gorilya-factory';
+        
+        try {
+            const config = JSON.parse(window.__firebase_config || '{}');
+            if (config.apiKey) {
+                if (!firebase.apps.length) firebase.initializeApp(config);
+                auth = firebase.auth();
+                db = firebase.firestore();
+            }
+        } catch (e) { console.warn("Firebase Init Error:", e); }
+
+        // --- Curated Product Data with Local Assets ---
+        const PRODUCTS = [
+            { 
+                id: 't1', 
+                name: 'Oversized Street Tee', 
+                category: 'T-Shirts', 
+                price: 18.50, 
+                description: '240GSM heavyweight cotton, extreme dropped shoulder, boxy silhouette.',
+                img: 'https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?auto=format&fit=crop&q=80&w=600',
+                mockup: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&q=80&w=600'
+            },
+            { 
+                id: 'h1', 
+                name: 'Heavy Fleece Hoodie', 
+                category: 'Outerwear', 
+                price: 45.00, 
+                description: '400GSM ultra-soft fleece, double-layered hood, minimalist design.',
+                img: 'assets/logo.png', // Updated to your asset folder path
+                mockup: 'https://images.unsplash.com/photo-1556821840-3a63f95609a7?auto=format&fit=crop&q=80&w=600'
+            },
+            { 
+                id: 't2', 
+                name: 'Acid Wash Boxy Tee', 
+                category: 'T-Shirts', 
+                price: 21.00, 
+                description: 'Vintage finish heavyweight cotton with reinforced stitching.',
+                img: 'https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?auto=format&fit=crop&q=80&w=600'
+            },
+            { 
+                id: 'b1', 
+                name: 'Tactical Sling Bag', 
+                category: 'Bags', 
+                price: 24.50, 
+                description: 'Weatherproof nylon, magnetic buckle, modular utility straps.',
+                img: 'https://images.unsplash.com/photo-1622560480605-d83c853bc5c3?auto=format&fit=crop&q=80&w=600'
+            },
+            { 
+                id: 'c1', 
+                name: 'Pro Factory Cap', 
+                category: 'Caps', 
+                price: 15.00, 
+                description: 'Structured 5-panel, breathable mesh, premium embroidery ready.',
+                img: 'https://images.unsplash.com/photo-1588850561407-ed78c282e89b?auto=format&fit=crop&q=80&w=600'
+            },
+            { 
+                id: 't3', 
+                name: 'Male Cropped Tee', 
+                category: 'Men', 
+                price: 19.00, 
+                description: 'High-waisted street cut for layering aesthetics.',
+                img: 'https://images.unsplash.com/photo-1618354691373-d851c5c3a990?auto=format&fit=crop&q=80&w=600'
+            },
+            { 
+                id: 'b2', 
+                name: 'Urban Factory Pack', 
+                category: 'Bags', 
+                price: 55.00, 
+                description: '25L capacity, laptop sleeve, industrial-grade hardware.',
+                img: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&q=80&w=600'
+            },
+            { 
+                id: 'w1', 
+                name: 'Women Modular Crop', 
+                category: 'Women', 
+                price: 17.00, 
+                description: 'Premium jersey blend, snug fit, athletic silhouette.',
+                img: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&q=80&w=600'
+            }
+        ];
+
+        // --- UI Helpers ---
+        const Icon = ({ name, size = 18, className = "" }) => {
+            useEffect(() => { if (window.lucide) window.lucide.createIcons(); }, [name]);
+            return <i data-lucide={name} style={{ width: size, height: size }} className={className}></i>;
+        };
+
+        // --- Main Components ---
+
+        const Navigation = ({ cartCount, onNavigate, currentPage }) => (
+            <nav className="fixed top-0 w-full z-50 bg-black/90 backdrop-blur-xl border-b border-zinc-900 px-6 py-4 flex items-center justify-between">
+                <div className="flex items-center gap-3 cursor-pointer group" onClick={() => onNavigate('home')}>
+                    <div className="w-10 h-10 bg-white flex items-center justify-center rounded-sm group-hover:neon-bg transition-all duration-300 overflow-hidden">
+                        <img 
+                            src="assets/logo.png" 
+                            alt="Lazy Gorilya Logo" 
+                            className="w-full h-full object-contain p-1"
+                            onError={(e) => {
+                                e.target.style.display = 'none';
+                                e.target.parentNode.innerHTML = '<span class="text-black font-archivo italic text-sm">LG</span>';
+                            }}
+                        />
+                    </div>
+                    <div>
+                        <h1 className="text-lg font-archivo tracking-tighter uppercase neon-text leading-none">Lazy Gorilya</h1>
+                        <span className="text-[8px] uppercase tracking-[0.4em] text-zinc-500 font-bold">Manufacturing</span>
+                    </div>
+                </div>
+                
+                <div className="hidden md:flex items-center gap-8 font-bold text-[10px] uppercase tracking-[0.3em]">
+                    {['home', 'catalog', 'customizer', 'pricing'].map(item => (
+                        <button 
+                            key={item}
+                            onClick={() => onNavigate(item)} 
+                            className={currentPage === item ? 'neon-text' : 'text-zinc-500 hover:text-white transition'}
+                        >
+                            {item === 'customizer' ? 'Rebrand' : item}
+                        </button>
+                    ))}
+                </div>
+
+                <div className="flex items-center gap-4">
+                    <button onClick={() => onNavigate('cart')} className="relative p-2.5 bg-zinc-900 rounded-lg border border-zinc-800 hover:neon-border transition">
+                        <Icon name="shopping-bag" className="text-white" />
+                        {cartCount > 0 && (
+                            <span className="absolute -top-1 -right-1 neon-bg text-white text-[9px] w-4 h-4 flex items-center justify-center rounded-full font-black">
+                                {cartCount}
+                            </span>
+                        )}
+                    </button>
+                </div>
+            </nav>
+        );
+
+        const ProductCard = ({ product, onAddToCart, onCustomize }) => (
+            <div className="group glass-panel rounded-sm overflow-hidden hover:border-red-600 transition-all duration-500 flex flex-col h-full">
+                <div className="relative aspect-[4/5] overflow-hidden product-image-container">
+                    <img 
+                        src={product.img} 
+                        alt={product.name} 
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 opacity-80 group-hover:opacity-100"
+                        onError={(e) => e.target.src = 'https://images.unsplash.com/photo-1556821840-3a63f95609a7?auto=format&fit=crop&q=80&w=600'}
+                    />
+                    <div className="absolute top-4 right-4 z-10">
+                        <span className="bg-black/80 backdrop-blur-md text-[9px] font-black px-2 py-1 uppercase tracking-tighter border border-zinc-800">
+                            {product.category}
+                        </span>
+                    </div>
+                </div>
+                <div className="p-5 flex flex-col flex-1 bg-black">
+                    <div className="flex justify-between items-start mb-3">
+                        <h3 className="font-archivo uppercase text-base leading-tight tracking-tight">{product.name}</h3>
+                        <span className="neon-text font-archivo text-sm ml-2">${product.price.toFixed(2)}</span>
+                    </div>
+                    <p className="text-[10px] text-zinc-500 font-medium uppercase tracking-widest leading-relaxed mb-6 line-clamp-2">
+                        {product.description}
+                    </p>
+                    <div className="mt-auto flex gap-2">
+                        <button 
+                            onClick={() => onAddToCart(product)} 
+                            className="flex-1 py-3 bg-white text-black font-archivo text-[10px] uppercase tracking-widest hover:neon-bg hover:text-white transition-all"
+                        >
+                            Add To Batch
+                        </button>
+                        <button 
+                            onClick={() => onCustomize(product)} 
+                            className="p-3 bg-zinc-900 text-white border border-zinc-800 hover:neon-border transition"
+                        >
+                            <Icon name="layout" size={16} />
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+
+        const App = () => {
+            const [user, setUser] = useState(null);
+            const [currentPage, setCurrentPage] = useState('home');
+            const [cart, setCart] = useState([]);
+            const [savedDesigns, setSavedDesigns] = useState([]);
+            const [selectedProduct, setSelectedProduct] = useState(null);
+            const [customLabel, setCustomLabel] = useState("");
+            const [placement, setPlacement] = useState("Neck");
+
+            useEffect(() => {
+                if (!auth) return;
+                const initAuth = async () => {
+                    if (window.__initial_auth_token) await auth.signInWithCustomToken(window.__initial_auth_token);
+                    else await auth.signInAnonymously();
+                };
+                initAuth();
+                const unsub = auth.onAuthStateChanged(u => setUser(u));
+                return unsub;
+            }, []);
+
+            useEffect(() => {
+                if (!user || !db) return;
+                const userPath = `artifacts/${appId}/users/${user.uid}`;
+                const unsubCart = db.collection(`${userPath}/cart`).onSnapshot(s => setCart(s.docs.map(d => ({id: d.id, ...d.data()}))));
+                const unsubDesigns = db.collection(`${userPath}/designs`).onSnapshot(s => setSavedDesigns(s.docs.map(d => ({id: d.id, ...d.data()}))));
+                return () => { unsubCart(); unsubDesigns(); };
+            }, [user]);
+
+            const addToCart = async (p) => {
+                if (!user || !db) return;
+                await db.collection(`artifacts/${appId}/users/${user.uid}/cart`).add({...p, addedAt: Date.now()});
+            };
+
+            const saveDesign = async () => {
+                if (!user || !db || !selectedProduct) return;
+                await db.collection(`artifacts/${appId}/users/${user.uid}/designs`).add({
+                    productId: selectedProduct.id,
+                    productName: selectedProduct.name,
+                    label: customLabel,
+                    placement,
+                    createdAt: Date.now()
+                });
+                setCurrentPage('catalog');
+                setSelectedProduct(null);
+                setCustomLabel("");
+            };
+
+            const removeFromCart = async (id) => {
+                if (!user || !db) return;
+                await db.collection(`artifacts/${appId}/users/${user.uid}/cart`).doc(id).delete();
+            };
+
+            return (
+                <div className="min-h-screen">
+                    <Navigation cartCount={cart.length} onNavigate={setCurrentPage} currentPage={currentPage} />
+                    
+                    <main>
+                        {currentPage === 'home' && (
+                            <>
+                                <section className="relative min-h-screen flex flex-col items-center justify-center px-6 overflow-hidden">
+                                    <div className="scanline"></div>
+                                    <div className="absolute inset-0 z-0">
+                                        <img 
+                                            src="https://images.unsplash.com/photo-1558769132-cb1aea458c5e?auto=format&fit=crop&q=80&w=2000" 
+                                            className="w-full h-full object-cover opacity-20 filter grayscale"
+                                            alt="Streetwear BG"
+                                        />
+                                        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/80 to-transparent"></div>
+                                    </div>
+
+                                    <div className="relative z-10 text-center max-w-5xl">
+                                        <div className="inline-flex items-center gap-3 px-5 py-1.5 border border-red-900 bg-red-950/20 text-red-500 font-bold text-[10px] uppercase tracking-[0.5em] rounded-full mb-10 animate-pulse">
+                                            <Icon name="factory" size={14} /> Global Garment Factory OS
+                                        </div>
+                                        <h2 className="text-7xl md:text-[140px] font-archivo uppercase leading-[0.8] tracking-tighter text-white mb-12 drop-shadow-2xl">
+                                            REBRAND THE <br/><span className="neon-text">BASICS.</span>
+                                        </h2>
+                                        <p className="text-zinc-500 text-lg md:text-xl font-medium uppercase tracking-[0.2em] mb-14 max-w-3xl mx-auto leading-relaxed">
+                                            Scale your label with premium blanks, modular rebranding, and professional studio assets.
+                                        </p>
+                                        <div className="flex flex-col md:flex-row gap-5 justify-center">
+                                            <button onClick={() => setCurrentPage('catalog')} className="px-16 py-7 neon-bg text-white font-archivo uppercase text-xs tracking-[0.3em] hover:scale-105 transition-all">Sourcing Catalog</button>
+                                            <button onClick={() => setCurrentPage('customizer')} className="px-16 py-7 glass-panel text-white font-archivo uppercase text-xs tracking-[0.3em] hover:bg-white hover:text-black transition-all">Launch Rebrand</button>
+                                        </div>
+                                    </div>
+                                </section>
+
+                                {/* Featured Selection Lookbook */}
+                                <section className="py-32 px-6 max-w-7xl mx-auto border-t border-zinc-900">
+                                    <div className="mb-20 text-center">
+                                        <h3 className="text-4xl font-archivo uppercase tracking-tighter mb-4">New <span className="neon-text">Arrivals</span></h3>
+                                        <p className="text-zinc-500 font-bold uppercase text-[10px] tracking-[0.5em]">The Factory Core Collection</p>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
+                                        {PRODUCTS.slice(0, 3).map(p => (
+                                            <ProductCard key={p.id} product={p} onAddToCart={addToCart} onCustomize={(prod) => {setSelectedProduct(prod); setCurrentPage('customizer');}} />
+                                        ))}
+                                    </div>
+                                </section>
+                            </>
+                        )}
+
+                        {currentPage === 'catalog' && (
+                            <section className="pt-40 pb-32 px-6 max-w-7xl mx-auto">
+                                <div className="flex flex-col md:flex-row md:items-end justify-between mb-24 gap-10">
+                                    <div className="max-w-xl">
+                                        <h2 className="text-6xl font-archivo uppercase text-white tracking-tighter mb-4">Stock <span className="neon-text">Inventory</span></h2>
+                                        <p className="text-zinc-500 font-black uppercase text-[11px] tracking-[0.4em] leading-relaxed">Heavyweight textiles engineered for street durability and professional screen-printing.</p>
+                                    </div>
+                                    <div className="flex flex-wrap gap-8 border-b border-zinc-800 pb-2">
+                                        {['All', 'T-Shirts', 'Outerwear', 'Bags', 'Accessories'].map(c => (
+                                            <button key={c} className="text-[10px] font-archivo uppercase tracking-widest text-zinc-600 hover:neon-text transition">{c}</button>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-16">
+                                    {PRODUCTS.map(p => (
+                                        <ProductCard key={p.id} product={p} onAddToCart={addToCart} onCustomize={(prod) => {setSelectedProduct(prod); setCurrentPage('customizer');}} />
+                                    ))}
+                                </div>
+                            </section>
+                        )}
+
+                        {currentPage === 'customizer' && (
+                            <section className="pt-40 pb-32 px-6 max-w-7xl mx-auto">
+                                <div className="glass-panel p-8 md:p-20 rounded-sm">
+                                    <div className="flex items-center gap-8 mb-20">
+                                        <div className="p-6 neon-bg rounded-sm text-white"><Icon name="edit-3" size={40} /></div>
+                                        <div>
+                                            <h2 className="text-5xl font-archivo uppercase text-white tracking-tighter">Spec <span className="neon-text">Lab</span></h2>
+                                            <p className="text-zinc-600 font-archivo text-[11px] uppercase tracking-[0.4em] mt-2">Active Target: {selectedProduct?.name || "Global Spec"}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid lg:grid-cols-2 gap-24">
+                                        <div className="space-y-16">
+                                            <div className="group">
+                                                <label className="block text-[10px] font-black uppercase mb-6 tracking-[0.4em] text-zinc-500 group-focus-within:text-red-500 transition">Brand Identity String</label>
+                                                <input 
+                                                    type="text" 
+                                                    value={customLabel}
+                                                    onChange={(e) => setCustomLabel(e.target.value)}
+                                                    className="w-full bg-transparent border-b-2 border-zinc-900 py-6 text-4xl font-archivo uppercase text-white focus:outline-none focus:border-red-600 transition"
+                                                    placeholder="BRAND NAME"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-black uppercase mb-6 tracking-[0.4em] text-zinc-500">Placement Architecture</label>
+                                                <div className="grid grid-cols-3 gap-5">
+                                                    {['Neck', 'Sleeve', 'Bottom Hem'].map(p => (
+                                                        <button 
+                                                            key={p} 
+                                                            onClick={() => setPlacement(p)}
+                                                            className={`py-5 text-[10px] font-archivo uppercase border transition-all ${placement === p ? 'neon-bg text-white border-transparent' : 'border-zinc-800 text-zinc-600 hover:border-zinc-500'}`}
+                                                        >
+                                                            {p}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            <div className="p-16 border-2 border-dashed border-zinc-800 rounded-sm text-center bg-zinc-950/50 group hover:border-red-600 transition-all cursor-pointer">
+                                                <Icon name="upload-cloud" size={48} className="mx-auto mb-8 text-zinc-800 group-hover:neon-text transition" />
+                                                <span className="text-[11px] font-archivo text-zinc-600 uppercase tracking-widest group-hover:text-white transition">Inject Logo Data (SVG/PNG)</span>
+                                            </div>
+                                        </div>
+
+                                        <div className="relative aspect-[4/5] bg-zinc-950 rounded-sm border border-zinc-900 overflow-hidden shadow-2xl">
+                                            <img 
+                                                src={selectedProduct?.img || 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&q=80&w=600'} 
+                                                className="absolute inset-0 w-full h-full object-cover opacity-60 mix-blend-luminosity" 
+                                                alt="Mockup"
+                                            />
+                                            {selectedProduct ? (
+                                                <div className="relative z-10 w-full h-full flex flex-col items-center justify-center">
+                                                    <div className="w-72 h-96 bg-black/40 backdrop-blur-sm border border-white/5 relative flex items-center justify-center">
+                                                        <div className={`absolute transition-all duration-500 ${placement === 'Neck' ? 'top-8 w-24 h-12' : placement === 'Sleeve' ? 'top-1/2 -right-8 w-16 h-16 rotate-90' : 'bottom-12 w-28 h-14'} bg-white flex items-center justify-center shadow-xl`}>
+                                                            <span className="text-[9px] font-archivo text-black leading-none text-center px-3 tracking-tighter uppercase">{customLabel || 'LOGO'}</span>
+                                                        </div>
+                                                        <div className="text-zinc-600 font-archivo uppercase text-5xl tracking-tighter opacity-10 rotate-[-20deg]">SPECIMEN</div>
+                                                    </div>
+                                                    <div className="mt-12 bg-black/80 px-4 py-2 border border-red-600/30">
+                                                        <p className="text-[10px] font-archivo neon-text uppercase tracking-[0.4em]">{placement} Configuration Loaded</p>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="absolute inset-0 flex items-center justify-center px-12 text-center bg-black/60 backdrop-blur-md">
+                                                    <p className="font-archivo uppercase text-zinc-500 text-xs tracking-[0.4em] leading-loose">Select a garment from catalog to initialize visual spec.</p>
+                                                </div>
+                                            )}
+                                            
+                                            <button 
+                                                onClick={saveDesign}
+                                                disabled={!selectedProduct || !customLabel}
+                                                className="absolute bottom-0 w-full py-10 bg-white text-black font-archivo uppercase text-xs tracking-[0.5em] hover:neon-bg hover:text-white transition-all disabled:opacity-50"
+                                            >
+                                                Finalize Blueprint
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {savedDesigns.length > 0 && (
+                                    <div className="mt-40">
+                                        <h3 className="text-3xl font-archivo uppercase text-white mb-16 flex items-center gap-6">
+                                            <Icon name="layers" className="neon-text" /> Brand Specs Queue
+                                        </h3>
+                                        <div className="grid grid-cols-1 md:grid-cols-4 gap-10">
+                                            {savedDesigns.map(d => (
+                                                <div key={d.id} className="glass-panel p-10 rounded-sm group hover:neon-border transition-all">
+                                                    <div className="text-[10px] text-zinc-600 font-black uppercase mb-6 tracking-widest">{d.productName}</div>
+                                                    <div className="text-3xl font-archivo uppercase text-white leading-none mb-3 group-hover:neon-text transition">{d.label}</div>
+                                                    <div className="text-[11px] neon-text font-black uppercase tracking-[0.3em]">{d.placement} Mapping</div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </section>
+                        )}
+
+                        {currentPage === 'pricing' && (
+                            <section className="pt-40 pb-32 px-6 max-w-6xl mx-auto">
+                                <div className="text-center mb-24">
+                                    <h2 className="text-7xl font-archivo uppercase text-white tracking-tighter mb-6">Service <span className="neon-text">Tiers</span></h2>
+                                    <p className="text-zinc-500 font-black uppercase text-[11px] tracking-[0.6em]">Infrastructure for brand acceleration</p>
+                                </div>
+                                <div className="grid md:grid-cols-2 gap-16">
+                                    <div className="p-16 glass-panel border-zinc-900 bg-black flex flex-col hover:border-zinc-700 transition">
+                                        <h3 className="text-4xl font-archivo uppercase text-white mb-6">Basic</h3>
+                                        <div className="text-7xl font-archivo text-white mb-16">$0 <span className="text-xs text-zinc-600">/mo</span></div>
+                                        <div className="space-y-8 mb-20 flex-1 text-zinc-400 font-archivo text-[11px] uppercase tracking-[0.3em]">
+                                            <div className="flex items-center gap-5"><Icon name="check" className="text-zinc-800" /> Catalog Access</div>
+                                            <div className="flex items-center gap-5"><Icon name="check" className="text-zinc-800" /> Standard Custom Labels</div>
+                                            <div className="flex items-center gap-5"><Icon name="check" className="text-zinc-800" /> Bulk Order Pricing</div>
+                                            <div className="flex items-center gap-5 text-zinc-800"><Icon name="minus" /> Studio Assets</div>
+                                        </div>
+                                        <button className="w-full py-6 border-2 border-zinc-800 text-zinc-500 font-archivo uppercase text-xs tracking-widest cursor-default">Current Plan</button>
+                                    </div>
+                                    <div className="p-16 border-2 border-red-600 bg-zinc-950 flex flex-col relative shadow-[0_0_80px_rgba(255,0,60,0.15)] overflow-hidden">
+                                        <div className="absolute top-6 right-[-45px] px-16 py-1 neon-bg text-white text-[10px] font-archivo uppercase rotate-45">Pro Collection</div>
+                                        <h3 className="text-4xl font-archivo uppercase text-white mb-6">Pro Brand</h3>
+                                        <div className="text-7xl font-archivo text-white mb-16">$99 <span className="text-xs text-zinc-500">/mo</span></div>
+                                        <div className="space-y-8 mb-20 flex-1 text-zinc-200 font-archivo text-[11px] uppercase tracking-[0.3em]">
+                                            <div className="flex items-center gap-5"><Icon name="zap" className="neon-text" /> Priority Production Floor</div>
+                                            <div className="flex items-center gap-5"><Icon name="camera" className="neon-text" /> Studio Lookbook Services</div>
+                                            <div className="flex items-center gap-5"><Icon name="package" className="neon-text" /> Custom Tags & Packaging</div>
+                                            <div className="flex items-center gap-5"><Icon name="video" className="neon-text" /> Ghost Mannequin Shots</div>
+                                        </div>
+                                        <button className="w-full py-6 neon-bg text-white font-archivo uppercase text-xs tracking-widest hover:bg-white hover:text-black transition-all">Unlock Pro OS</button>
+                                    </div>
+                                </div>
+                            </section>
+                        )}
+
+                        {currentPage === 'cart' && (
+                            <section className="pt-40 pb-32 px-6 max-w-4xl mx-auto">
+                                <h2 className="text-6xl font-archivo uppercase text-white tracking-tighter mb-20">Batch <span className="neon-text">Queue</span></h2>
+                                {cart.length === 0 ? (
+                                    <div className="text-center py-48 glass-panel border-dashed border-zinc-800">
+                                        <Icon name="package" size={80} className="mx-auto mb-10 text-zinc-900" />
+                                        <p className="text-zinc-600 font-archivo text-xs uppercase tracking-[0.5em] mb-12">Batch queue is empty.</p>
+                                        <button onClick={() => setCurrentPage('catalog')} className="text-white font-archivo text-[11px] uppercase border-b-2 border-red-600 pb-3 hover:neon-text transition-all">Initialize Sourcing</button>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-6">
+                                        {cart.map(item => (
+                                            <div key={item.id} className="flex items-center justify-between p-10 glass-panel group hover:border-red-600 transition-all">
+                                                <div className="flex items-center gap-12">
+                                                    <div className="w-24 h-28 bg-zinc-900 rounded-sm overflow-hidden border border-zinc-800">
+                                                        <img src={item.img} className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all" alt="Item" />
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="text-2xl font-archivo uppercase text-white tracking-tighter mb-2">{item.name}</h4>
+                                                        <p className="neon-text font-archivo text-base tracking-tight">${item.price.toFixed(2)} / Unit</p>
+                                                    </div>
+                                                </div>
+                                                <button onClick={() => removeFromCart(item.id)} className="p-4 text-zinc-700 hover:neon-text transition">
+                                                    <Icon name="trash-2" size={28} />
+                                                </button>
+                                            </div>
+                                        ))}
+                                        <div className="mt-24 p-16 glass-panel border-red-900/40">
+                                            <div className="flex justify-between items-center mb-16">
+                                                <span className="text-zinc-500 font-archivo text-[11px] uppercase tracking-[0.5em]">Project Estimate</span>
+                                                <span className="text-6xl font-archivo text-white tracking-tighter">${cart.reduce((s,i)=>s+i.price,0).toFixed(2)}</span>
+                                            </div>
+                                            <button className="w-full py-8 neon-bg text-white font-archivo uppercase text-sm tracking-[0.4em] hover:scale-[1.01] transition-all">Submit Production Order</button>
+                                            <p className="text-[10px] text-zinc-800 font-black uppercase text-center mt-10 tracking-[0.6em]">Secure B2B Payment Gateway • Global Logistics Enabled</p>
+                                        </div>
+                                    </div>
+                                )}
+                            </section>
+                        )}
+                    </main>
+
+                    <footer className="pt-40 pb-20 px-6 border-t border-zinc-900 bg-black">
+                        <div className="max-w-7xl mx-auto grid md:grid-cols-2 gap-32">
+                            <div>
+                                <div className="flex items-center gap-4 mb-12">
+                                    <div className="w-12 h-12 bg-white flex items-center justify-center rounded-sm overflow-hidden">
+                                        <img src="assets/logo.png" className="w-full h-full object-contain p-1" alt="Logo" />
+                                    </div>
+                                    <h1 className="text-3xl font-archivo tracking-tighter uppercase neon-text leading-none">Lazy Gorilya</h1>
+                                </div>
+                                <p className="text-zinc-600 text-[11px] font-archivo uppercase tracking-[0.2em] max-w-md leading-loose mb-10">
+                                    High-performance streetwear manufacturing. Operating at the intersection of urban culture and industrial precision. v2.0 Production Collective.
+                                </p>
+                                <div className="flex gap-10">
+                                    <Icon name="instagram" className="text-zinc-800 hover:text-white cursor-pointer transition" />
+                                    <Icon name="twitter" className="text-zinc-800 hover:text-white cursor-pointer transition" />
+                                    <Icon name="facebook" className="text-zinc-800 hover:text-white cursor-pointer transition" />
+                                </div>
+                            </div>
+                            <div className="flex justify-end gap-32 text-[11px] font-archivo uppercase tracking-[0.4em] text-zinc-800">
+                                <div>
+                                    <h5 className="mb-12 text-zinc-400">Operations</h5>
+                                    <ul className="space-y-8">
+                                        <li className="hover:text-white cursor-pointer transition">Fabric Library</li>
+                                        <li className="hover:text-white cursor-pointer transition">QC Protocols</li>
+                                        <li className="hover:text-white cursor-pointer transition">Supply API</li>
+                                    </ul>
+                                </div>
+                                <div>
+                                    <h5 className="mb-12 text-zinc-400">Legal</h5>
+                                    <ul className="space-y-8">
+                                        <li className="hover:text-white cursor-pointer transition">B2B Terms</li>
+                                        <li className="hover:text-white cursor-pointer transition">Ethics</li>
+                                        <li className="hover:text-white cursor-pointer transition">Privacy</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="max-w-7xl mx-auto mt-40 pt-10 border-t border-zinc-900 text-[10px] font-archivo uppercase tracking-[0.5em] text-zinc-800 flex justify-between items-center">
+                            <p>© 2026 Lazy Gorilya collective</p>
+                            <p className="flex items-center gap-2">Factory Status: <span className="text-green-900 animate-pulse font-black uppercase">Online</span></p>
+                        </div>
+                    </footer>
+                </div>
+            );
+        };
+
+        const rootElement = document.getElementById('root');
+        if (rootElement) {
+            ReactDOM.createRoot(rootElement).render(<App />);
+        }
+    </script>
+</body>
+</html>
